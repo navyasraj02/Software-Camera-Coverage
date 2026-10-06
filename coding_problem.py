@@ -1,61 +1,70 @@
-def func(desired_x_min, desired_x_max, desired_y_min, desired_y_max, hardware_cam_list):
-    # Collect X boundaries
-    x_points = [desired_x_min, desired_x_max]
+def can_cover_desired_ranges(
+    desired_distance_min,
+    desired_distance_max,
+    desired_light_min,
+    desired_light_max,
+    hardware_cameras,
+):
+    # Collect distances where camera availability can change.
+    distance_boundaries = [desired_distance_min, desired_distance_max]
 
-    for cam in hardware_cam_list:
-        if desired_x_min <= cam[0][0] <= desired_x_max:
-            x_points.append(cam[0][0])
+    for camera in hardware_cameras:
+        camera_distance_min, camera_distance_max = camera[0]
+        if desired_distance_min <= camera_distance_min <= desired_distance_max:
+            distance_boundaries.append(camera_distance_min)
 
-        if desired_x_min <= cam[0][1] <= desired_x_max:
-            x_points.append(cam[0][1])
+        if desired_distance_min <= camera_distance_max <= desired_distance_max:
+            distance_boundaries.append(camera_distance_max)
 
-    x_points = sorted(set(x_points))
+    distance_boundaries = sorted(set(distance_boundaries))
 
-    # Check boundaries and midpoints
-    points_to_check = []
+    # Check each distance boundary and a midpoint between adjacent boundaries.
+    distances_to_check = []
 
-    for i in range(len(x_points) - 1):
-        points_to_check.append(x_points[i])
+    for boundary_index in range(len(distance_boundaries) - 1):
+        distances_to_check.append(distance_boundaries[boundary_index])
 
-        midpoint = (x_points[i] + x_points[i + 1]) / 2
-        points_to_check.append(midpoint)
+        distance_midpoint = (distance_boundaries[boundary_index]+ distance_boundaries[boundary_index + 1]) / 2
+        distances_to_check.append(distance_midpoint)
 
-    points_to_check.append(x_points[-1])
+    distances_to_check.append(distance_boundaries[-1])
 
-    for desired_x in points_to_check:
+    cameras_sorted_by_light_min = sorted(hardware_cameras, key=lambda camera: camera[1][0])
 
-        # Find cameras active at this X
-        active_cams = []
+    for distance_to_check in distances_to_check:
+        # Collect light ranges from cameras that support this distance.
+        active_light_ranges = []
 
-        for hardware_cam in hardware_cam_list:
-            if hardware_cam[0][0] <= desired_x <= hardware_cam[0][1]:
-                active_cams.append(hardware_cam[1])
+        for camera in cameras_sorted_by_light_min:
+            camera_distance_min, camera_distance_max = camera[0]
+            camera_light_range = camera[1]
+            if camera_distance_min <= distance_to_check <= camera_distance_max:
+                active_light_ranges.append(camera_light_range)
 
-        if len(active_cams) == 0:
+        if len(active_light_ranges) == 0:
             return False
 
-        active_cams.sort(key=lambda x: x[0])
+        # Merge light ranges in order, checking for gaps in the desired range.
+        covered_light_max = desired_light_min
 
-        # Check continuous Y coverage
-        covered_y = desired_y_min
-
-        for cam in active_cams:
-
-            if cam[0] > covered_y:
+        for light_min, light_max in active_light_ranges:
+            if light_min > covered_light_max:
                 return False
 
-            covered_y = max(covered_y, cam[1])
+            covered_light_max = max(covered_light_max, light_max)
 
-            if covered_y >= desired_y_max:
+            if covered_light_max >= desired_light_max:
                 break
 
-        if covered_y < desired_y_max:
+        if covered_light_max < desired_light_max:
             return False
 
     return True
 
-# Test case 1: Return True
-print(func(
+
+# Test case 1
+# Expected: True
+print(can_cover_desired_ranges(
     0, 10,
     0, 10,
     [
@@ -64,8 +73,9 @@ print(func(
     ]
 ))
 
-# Test case 2: Return False
-print(func(
+# Test case 2
+# Expected: False
+print(can_cover_desired_ranges(
     0, 10,
     0, 10,
     [
